@@ -24,7 +24,6 @@ LIST P=16F887
  STATUS_TEMP  equ 0x		    ;Variables temporales para salvar contexto - STATUS
 ;Variables propositos generales
  estadoRB     equ 0x		    ;Variable que guarda estado anterior de puerto B
- varAux	      equ 0x		    ;Variable para hacer calculos auxiliares
 
 
 INCLUDE <P16F887.INC> 
@@ -50,7 +49,6 @@ Inicio
  clrf	    W_TEMP
  clrf	    STATUS_TEMP
  clrf	    estadoRB
- clrf	    varAux
  ;Configuracion Puerto B
  BANKSEL    TRISB
     movlw	B'00010011'	    ;RB0,RB1 y RB4 entrada
@@ -250,6 +248,7 @@ L4
  subwf	    distanciaH,W	    ;Asi que me fijo si puedo restarle al banco alto
  btfss	    STATUS,C
     return			    ;Ambos bancos estan vacios, entonces termine y vuelvo
+ decf	    distanciaL		    ;Se pone todo en 1
  movlw	    D'1'		    ;Si puedo
  subwf	    distanciaH,F	    ;Entonces efectivamente le resto 1
  incf	    varUnidades,F	    ;Y porque resto 1, debo sumar una unidad
