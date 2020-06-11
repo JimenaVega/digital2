@@ -9,8 +9,10 @@ list p = 16F887
 ; __config 0x3FFF
  __CONFIG _CONFIG2, _BOR4V_BOR40V & _WRT_OFF
 
-COUNT equ 0x20
-sended equ 0x21
+COUNT  equ 0x20
+TXflag equ 0x21
+DistanciaL equ 0x30
+DistanciaH equ 0x31
 org  0x00
 goto Init
  
@@ -34,77 +36,64 @@ Init
  movwf   SPBRG
  clrf    SPBRGH
  
- bsf     PIE1,TXIE
+; bsf     PIE1,TXIE
  
  bsf     IOCB,0
  bsf     IOCB,1
  
  banksel PORTB
  clrf    PORTB
- movlw   0x01
- movwf   sended
- 
- movlw   'H'
- movwf   0x30
- movlw   'O'
- movwf   0x31
- movlw   'L'
- movwf   0x32
- movlw   'A'
- movwf   0x33
- 
- clrf COUNT
- movlw 0x30
- movwf FSR
- 
 
- movlw   0x0F
- movwf   TXREG
+ clrf   TXflag
+ 
+ movlw   'J'
+ movwf   DistanciaL
+ movlw   'E'
+ movwf   DistanciaH
 
- movlw   b'11001000'
+
+ movlw   b'10001000'
  movwf   INTCON
  
  
  
  
  Main
-    nop
+    movf   TXflag,W
+    btfsc  TXflag,0
+    call   sendSerialData
+    bcf    STATUS,RP0
     goto   Main
     
-interrupt
+interrupt ;por rb0
     
    movlw 0x01
-   btfsc PIR1,TXIF
-   movwf sended
+   movwf TXflag
    
-   ;movlw   0xFB
-   ;movwf   TXREG
-   
-   btfsc INTCON,RBIF
+   banksel RCSTA
    bsf     RCSTA,SPEN
-   call  sendSerialData
    
+   movf    DistanciaL,W
+   banksel TXREG
+   movwf   TXREG
+   
+   banksel PORTB
+   movf  PORTB,W 
    bcf   INTCON,RBIF
    retfie
  
 sendSerialData
-   movf  INDF,W
    
-   btfsc sended,0
-   movwf TXREG
-   clrf  sended
+   banksel TXSTA
+   btfss   TXSTA,TRMT
+   return
    
-   incf  COUNT,F
-   movf  COUNT,W
-   movlw FSR
-   
-   movlw 0x34
-   xorwf FSR,W
-   movlw 0x30
-   btfsc STATUS,Z
-   movwf FSR
-   
-   goto sendSerialData
+changeTXREG
+   bcf    STATUS,RP0
+   movf   DistanciaH,W 
+   movwf   TXREG
+   clrf    TXflag  
+   return
    
  end
  
