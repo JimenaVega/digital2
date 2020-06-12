@@ -19,6 +19,8 @@ N_ROW    equ 2     ; CAntidad máxima de filas del teclado
 W_TEMP   equ 0x27 ; variables temporales para salvar contexto - W
 STATUS_TEMP equ 0x28; variables temporales para salvar contexto - STATUS
 REG_AUX   equ  0x29
+KEY       equ  0x2A
+botonFlag equ  0x2B
 #include <p16f887.inc> 
 ; Clock = 4Mhz => Ciclo de instrucción de 1us
  
@@ -33,8 +35,9 @@ REG_AUX   equ  0x29
 Inicio 
     call init; Inicializa puertos; PIC16F887 Configuration Bit Settings
 loop
-    ;call keyexploration; llama a la rutina de exploracion de displays 
-    goto loop 
+    btfsc botonFlag,0
+    call  keyexploration; llama a la rutina de exploracion de displays 
+    goto  loop 
     
 init
     BANKSEL TRISD   
@@ -59,6 +62,7 @@ init
     clrf    COLUMN       ; Inicializo contadores de columna y fila
     clrf    ROW
     clrf    REG_AUX
+    clrf    botonFlag
     bsf     INTCON, RBIE ; habilito interrupciones por nivel de RB
     bsf     INTCON, GIE  ; habilito interrupciones generales
     return 
@@ -70,7 +74,9 @@ INTSERV
     movwf STATUS_TEMP    ;Salvamos status en el registro STATUS_TEMP
     btfss INTCON, RBIF   ; Interrupción por RB
     goto  fininte
-    call  keyexploration
+    ;call  keyexploration
+    movlw 0x01
+    movwf botonFlag
     
     movf  PORTB,W
     bcf   INTCON, RBIF
@@ -133,13 +139,13 @@ row_dec
     goto  end_key_exp
 fin_dec
     bcf STATUS, C     ; con los valores de columna y fila
-    ;rlf ROW, F        ; detectado calculo la tecla
     rlf ROW, W        ; ROW*2 + COLUMN
-    addwf COLUMN, F
-    incf  COLUMN,W
-    ;movf ROW,W
+    addwf COLUMN, W
+   
     call table7seg    ; codificamos a 7 segmento y 
+    movwf KEY
     movwf PORTD       ; enviamos al puerto D
+    
 end_key_exp
     movlw 0x00      ;Inicializamos puerto para nueva exploración
     movwf PORTB
@@ -147,28 +153,35 @@ end_key_exp
       
 table7seg
     addwf PCL, F
-    retlw 0x3F; 0
-    retlw 0x06; 1
-    retlw 0x5B; 2
-    retlw 0x4F; 3
-    retlw 0x66; 4
-    retlw 0x6D; 5
-    retlw 0x7D; 6
-    retlw 0x07; 7
-    retlw 0x7F; 8
-    retlw 0x6F; 9  
-    retlw 0x77; A
-    retlw 0x7C; B
-    retlw 0x39; C
-    retlw 0x5E; D
-    retlw 0x79; E
-    retlw 0x71; F 
+    retlw 0x01; 0 -> 0001
+    retlw 0x02; 1 -> 0010
+    retlw 0x04; 2 -> 0100
+    retlw 0x08; 3 -> 1000
+
 en_row
     addwf PCL, F
-    retlw 0x02; COL0
-    retlw 0x01; COL1
-   
-       
+    retlw 0x02
+    retlw 0x01
+
+choosePath
+    movlw 0x01
+    btfsc KEY,0
+    ;call empezar a medir distancia
+    btfsc KEY,1
+    ;movwf TMR1Flag ;TMR1Flag = 1
+    btfsc KEY,2
+    ;movwf flagLED
+    btfsc KEY,3
+    ;call prepareTX
+    
+    return 
+prepareTX
+    ;movlw  0x01
+    ;movwf TXFlag
+    ;bsf   RCSTA,SPEN
+    ;movf  DistanciaL,W
+    ;movwf TXREG
+    return
     END
 
 
