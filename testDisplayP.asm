@@ -57,7 +57,8 @@ Inicio
     clrf	TRISC		    ;Se usara <RC0,RC3> como salida 
     clrf	TRISD		    ;Se usara <RD0,RD7> como salida 
  BANKSEL    PORTC
-    clrf	PORTC		    ;Inicializo Puerto C
+    movlw	0x07		    ;Inicializo Puerto C
+    movwf       PORTC
     movlw	0x3F		    ;Puerto D conectado a Displays
     movwf	PORTD		    ;Empezaran prendidos con 0
 ;Configuracion TMR1
@@ -77,9 +78,9 @@ Inicio
     movlw       b'11001000' ;GIE PEIE RBIE
     movwf       INTCON
  BANKSEL    PORTB
- movlw      0x03
+ movlw      0x00
  movwf      varUnidades
- movlw      0x02
+ movlw      0x00
  movwf      varDecenas
  movlw      0x08
  movwf      varCentenas

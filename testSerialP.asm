@@ -23,27 +23,28 @@ org 0x05
 Init
  banksel ANSELH
  clrf    ANSELH
- bsf     BAUDCTL,3 ;8bit baud generator
+ bcf     BAUDCTL,3 ;8bit baud generator
  
- banksel TXSTA
- movlw   b'00100100' ;configurado para 9600 baudios
- movwf   TXSTA
- 
- movlw   0xFF
- movwf   TRISB
- 
+ banksel TRISB
  movlw   .25    ;25d
  movwf   SPBRG
  clrf    SPBRGH
  
-; bsf     PIE1,TXIE
+ movlw   b'00100100' ;configurado para 9600 baudios
+ movwf   TXSTA
  
+ movlw   0x03
+ movwf   TRISB
+ clrf    TRISD
+ 
+ bcf     OPTION_REG,7
  bsf     IOCB,0
  bsf     IOCB,1
- 
+
  banksel PORTB
  clrf    PORTB
-
+ clrf    PORTD
+ 
  clrf   TXflag
  
  movlw   'J'
@@ -66,18 +67,17 @@ Init
     goto   Main
     
 interrupt ;por rb0
-    
-   movlw 0x01
-   movwf TXflag
+   bcf     STATUS,RP0
+   movlw   0x01
+   movwf   TXflag
    
-   banksel RCSTA
+   movlw   0xFF
+   movwf   PORTD
    bsf     RCSTA,SPEN
    
    movf    DistanciaL,W
-   banksel TXREG
    movwf   TXREG
    
-   banksel PORTB
    movf  PORTB,W 
    bcf   INTCON,RBIF
    retfie
