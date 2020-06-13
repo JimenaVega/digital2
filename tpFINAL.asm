@@ -77,8 +77,9 @@ Inicio
     bcf		OPTION_REG,7    ;Habilito pull up resistors
     movlw	B'00011100'
     movwf	WPUB		    ;Habilito pull up resistors de RB2, RB3 y RB4
- BANKSEL    PORTB
-    clrf	PORTB		    ;Inicializo Puerto B
+ BANKSEL    PORTB               ;Inicializo Puerto B  	    
+    movlw       B'00001100'
+    movwf       PORTB
  ;Configuracion Puerto C y D
  BANKSEL    TRISC
     clrf	TRISC		    ;Se usara <RC0,RC3> como salida 
@@ -267,13 +268,32 @@ fin_dec
     rlf ROW, W        ; ROW*2 + COLUMN
     addwf COLUMN, W
    
-    call table7seg    ; codificamos a 7 segmento y 
+    call  table7seg    ; codificamos a 7 segmento y 
     movwf KEY
-    movwf PORTD       ; enviamos al puerto D
-    
-end_key_exp
-    movlw 0x00      ;Inicializamos puerto para nueva exploración
+    movwf PORTD       ; SOLO PARA TESTING
+
+choosePath
+    movlw 0x01
+    btfsc KEY,0
+    ;call empezar a medir distancia
+    btfsc KEY,1
+    ;movwf TMR1Flag ;TzMR1Flag = 1
+    btfsc KEY,2
+    ;movwf flagLED
+    btfsc KEY,3
+    call prepareTX
+end_key_exp     
+    ;clrf PORTB;Inicializamos puerto para nueva exploración
+    movlw B'00001100'
     movwf PORTB
+    clrf  botonFlag
+    return
+prepareTX
+    ;movlw  0x01
+    ;movwf TXFlag
+    ;bsf   RCSTA,SPEN
+    ;movf  DistanciaL,W
+    ;movwf TXREG
     return
     
 table7seg
