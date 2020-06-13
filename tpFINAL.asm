@@ -6,37 +6,40 @@ LIST P=16F887
 ;Variables T0
  
 ;Variables T1
- TMR1Flag     equ 0x33		    ;Flag para resolver interrupcion por T1 fuera
+ TMR1Flag      equ 0x33		    ;Flag para resolver interrupcion por T1 fuera
 ;Variables multiplexado
- ;asd
+ changeDisplay equ 0x2D;
 ;Variables teclado
- botonFlag    equ 0x20		    ;Flag para resolver interrupcion por teclado fuera
+ botonFlag     equ 0x20		    ;Flag para resolver interrupcion por teclado fuera
+ COL_EN        equ 0x26
+ COL_EN_T      equ 0x27
+ COLUMN        equ 0x28  
+ ROW           equ 0x29    
+ REG_AUX       equ 0x2A
+ KEY           equ 0x2B
+ N_COL         equ 2  
+ N_ROW         equ 2
+ PORTB_AUX     equ 0x2C
 ;Variables sensor
- varUnidades  equ 0x30		    ;Para realizar calculos de distancia
- varDecenas   equ 0x31		    ;Los separo en unidades, decenas y centenas
- varCentenas  equ 0x32		    ;Para mostrarlos en 3 Display
- distanciaL   equ 0x21		    ;Se usara un contador durante la medicion
- distanciaH   equ 0x22		    ;De dos registros, porque la distancia maxima es 400cm
+ varUnidades   equ 0x30		    ;Para realizar calculos de distancia
+ varDecenas    equ 0x31		    ;Los separo en unidades, decenas y centenas
+ varCentenas   equ 0x32		    ;Para mostrarlos en 3 Display
+ distanciaL    equ 0x21		    ;Se usara un contador durante la medicion
+ distanciaH    equ 0x22		    ;De dos registros, porque la distancia maxima es 400cm
 ;Variables puerto serie
- ;asd
+ COUNT         equ 0x2E
+ TXflag        equ 0x2F
 ;Variables contexto
- W_TEMP       equ 0x23		    ;Variables temporales para salvar contexto - W
- STATUS_TEMP  equ 0x24		    ;Variables temporales para salvar contexto - STATUS
+ W_TEMP        equ 0x23		    ;Variables temporales para salvar contexto - W
+ STATUS_TEMP   equ 0x24		    ;Variables temporales para salvar contexto - STATUS
 ;Variables propositos generales
- estadoRB     equ 0x25		    ;Variable que guarda estado anterior de puerto B
- COL_EN       equ 0x26
- COL_EN_T     equ 0x27
- COLUMN       equ 0x28  
- ROW          equ 0x29    
- REG_AUX      equ 0x2A
- KEY          equ 0x2B
- N_COL        equ 2  
- N_ROW        equ 2
- PORTB_AUX    equ 0x2C
- changeDisplay equ 0x2D; 
+ estadoRB      equ 0x25		    ;Variable que guarda estado anterior de puerto B
+ flagLED       equ 0x33
+
+ 
 INCLUDE <P16F887.INC> 
 
- ;Clock 8MHz
+ ;Clock 8MHz ?????????????????????
 ORG 0x00
  call Inicio
  goto MAIN
@@ -58,6 +61,8 @@ Inicio
  clrf	    STATUS_TEMP
  clrf	    estadoRB
  clrf       changeDisplay
+ clrf       COUNT
+ clrf       TXflag
  
  clrf       COLUMN       ; Inicializo contadores de columna y fila
  clrf       ROW
@@ -90,25 +95,28 @@ Inicio
     movwf	PORTC		    ;Inicializo Puerto C
     movlw	0x3F		    ;Puerto D conectado a Displays
     movwf	PORTD		    ;Empezaran prendidos con 0
-    movlw       0x01
-    movwf       varUnidades
-    movlw       0x02
-    movwf       varDecenas
-    movlw       0x08
-    movwf       varCentenas
- ;Configuracion Puerto Serie
- ;BANKSEL    TXSTA		    ;Se config paso a paso para mayor entendimiento
-  ;  bcf		TXSTA,TX9D	    ;Solo usaremos 8 bits
-  ; bsf		TXSTA,BRGH	    ;BaudRate alta velocidad
-  ; bcf		TXSTA,SYNC	    ;Modo Asincronico
-  ; bsf		TXSTA,TXEN	    ;Transmit Enabled
-; BANKSEL    RCSTA
- ;   bsf		RCSTA,SPEN	    ;Habilito RX/DT y TX/CK como pins de Puerto Serie
-; BANKSEL    BAUDCTL
- ;   bcf		BAUDCTL,BRG16	    ;BaudRate de 8 bits
- ;BANKSEL    SPBRG
-  ;  movlw			    ;Hay que elegir valor de BaudRate
-   ;movwf	SPBRG		    ;Supongo 4MHz
+    
+;testing Jime
+   ; movlw       0x01
+   ; movwf       varUnidades
+   ; movlw       0x02
+   ; movwf       varDecenas
+   ; movlw       0x08
+   ; movwf       varCentenas
+    movlw   'L'
+    movwf   distanciaL
+    movlw   'H'
+    movwf   distanciaH
+    
+ ;Configuracion Puerto Serie	    
+ BANKSEL    BAUDCTL
+    bcf		BAUDCTL,3	    ;BaudRate de 8 bits
+ BANKSEL    SPBRG
+    movlw	.25		    ;Hay que elegir valor de BaudRate
+    movwf	SPBRG		    ;Supongo 4MHz
+    clrf        SPBRGH
+    movlw       B'00100100' ;configurado para 9600 baudios
+    movwf       TXSTA
  ;Configuracion TMR1
    movlw        0x01  ;VER bit T1CON[0] 
    movwf        T1CON ;habilitar TMR1E en PIE1
@@ -120,14 +128,6 @@ Inicio
  BANKSEL    IOCB
     movlw	B'00011100'	    ;RB2,RB3 y RB4 tendran interrupcion
     movwf	IOCB		    ;Por flancos
- ;Limpiar Banderas
- ;BANKSEL    INTCON
-  ;  bcf		INTCON,RBIF	    ;Limpio bandera interrupcion por Puerto B
-   ; bcf		INTCON,T0IF	    ;Limpio bandera interrupcion por Timer0
- ;BANKSEL    PIR1
-  ;  bcf		PIR1,TMR1IF	    ;Limpio bandera interrupcion por Timer1
-   ; bcf		PIR1,TXIF	    ;Limpio bandera interrupcion por TX
-
 
  ;Habilitar Interrupciones
 ; BANKSEL    PIE1
@@ -136,16 +136,16 @@ Inicio
  BANKSEL    INTCON
     movlw       b'11001000' ;GIE PEIE RBIE
     movwf       INTCON
-    ;bsf		INTCON,RBIE	    ;Habilito interrupcion por Puerto B
-    ;bsf		INTCON,PEIE	    ;Habilito interrupcion por Perifericos
-    ;bsf		INTCON,GIE	    ;Habilito interrupciones
  return
  
 MAIN
+ bcf        STATUS,RP0;***********
  btfsc	    TMR1Flag,0		    ;Pregunto si hubo interrupcion por TMR1
     call	subrutinaTMR1	    ;Si la respuesta es si, voy a la subrutina de TMR1
  btfsc	    botonFlag,0		    ;Pregunto si hubo interrupcion por RB0 o RB1
     call	TECLADO		    ;Si la respuesta es si, voy a la subrutina para resolver teclado
+ btfsc      TXflag,0
+    call	rutinaTX    
  goto	    MAIN		    ;Vuelvo al inicio
  
 INTSERV
@@ -161,7 +161,7 @@ INTSERV
     goto	RESETT0		    ;Si lo fue, voy a rutina para resolver la interrupcion
  btfsc	    PIR1,TXIF		    ;Pregunto si la interrupcion fue por TX
     goto	rutinaTX	    ;Si lo fue, voy a rutina para resolver la interrupcion
-    
+    bcf     STATUS,RP0
 FINITE				    ;Recupero contexto
  swapf	    STATUS_TEMP,W	    ;Swap registro STATUS_TEMP register a W
  movwf	    STATUS		    ;Recupero el estado
@@ -230,86 +230,90 @@ RESETT0
  
 TECLADO 
  
-    movf  PORTB_AUX, W       ; Guardo valor de columna habilitada
-    movwf COL_EN
-    rrf   COL_EN,F
-    rrf   COL_EN,W
-    andlw 0x03
-    movwf COL_EN
-    movwf COL_EN_T
+    movf    PORTB_AUX, W       ; Guardo valor de columna habilitada
+    movwf   COL_EN
+    rrf     COL_EN,F
+    rrf     COL_EN,W
+    andlw   0x03
+    movwf   COL_EN
+    movwf   COL_EN_T
     
-    movlw 0x03           ; Pregunto si hay alguna tecla pulsada
-    subwf COL_EN, W      ; en caso negativo me voy de la subrutina
-    btfsc STATUS, Z      ; en caso positivo empiezo a explorar
-    goto  end_key_exp
-    clrf  COLUMN         ; inicializo contadores de exploración
-    clrf  ROW
+    movlw   0x03         
+    subwf   COL_EN, W      
+    btfsc   STATUS, Z      
+    goto    end_key_exp
+    clrf    COLUMN         
+    clrf    ROW
 col_dec    
-    rrf   COL_EN_T, F ; empiezo a explorar columna
-    btfss STATUS,C    ; verificando que bit se puso a 0
-    goto  row_dec     ; hasta llegar al maximo de columnas
+    rrf     COL_EN_T,F 
+    btfss   STATUS,C    
+    goto    row_dec     
 
-    incf  COLUMN, F  ; si no se encuentra fue un falso disparo
-    movlw N_COL
-    subwf COLUMN, W
-    btfss STATUS, Z
-    goto  col_dec
-    clrf  COLUMN
-    goto  end_key_exp
+    incf    COLUMN, F  
+    movlw   N_COL
+    subwf   COLUMN, W
+    btfss   STATUS, Z
+    goto    col_dec
+    clrf    COLUMN
+    goto    end_key_exp
 row_dec
-    movf ROW,W       ; empiezo a explorar filas
-    call en_row      ; voy habilitando de a uno las salidas
-    movwf PORTB      ; para saber quien fue
+    movf    ROW,W      
+    call    en_row      
+    movwf   PORTB      
 
-    movf PORTB, W   ; comparando contra la entrada
-    movwf REG_AUX
-    rrf   REG_AUX,F
-    rrf   REG_AUX,W
-    andlw 0x03
-    subwf COL_EN, W   
-    btfsc STATUS, Z   
-    goto fin_dec
-    incf ROW, F      ; Tambien comparo hasta el numero
+    movf    PORTB, W  
+    movwf   REG_AUX
+    rrf     REG_AUX,F
+    rrf     REG_AUX,W
+    andlw   0x03
+    subwf   COL_EN, W   
+    btfsc   STATUS, Z   
+    goto    fin_dec
+    incf    ROW, F     
 
-    movlw N_ROW      ; maximo de filas en el teclado
-    subwf ROW, W     ; si es mayor fue un falso disparo
-    btfss STATUS, Z
-    goto  row_dec
-    movlw 0x0F
-    movwf ROW
-    clrf  ROW
-    goto  end_key_exp
+    movlw   N_ROW     
+    subwf   ROW, W     
+    btfss   STATUS, Z
+    goto    row_dec
+    movlw   0x0F
+    movwf   ROW
+    clrf    ROW
+    goto    end_key_exp
 fin_dec
-    bcf STATUS, C     ; con los valores de columna y fila
-    rlf ROW, W        ; ROW*2 + COLUMN
-    addwf COLUMN, W
+    bcf     STATUS, C     ; con los valores de columna y fila
+    rlf     ROW, W        ; ROW*2 + COLUMN
+    addwf   COLUMN, W
    
-    call  tableKEY    ; codificamos a 7 segmento y 
-    movwf KEY
-    movwf PORTD       ; SOLO PARA TESTING
+    call    tableKEY    ; codificamos a 7 segmento y 
+    movwf   KEY
+    movwf   PORTD       ; SOLO PARA TESTING
 
 choosePath
-    movlw 0x01
-    btfsc KEY,0
+    movlw   0x01
+    btfsc   KEY,0
+    ;*****************************
     ;call empezar a medir distancia
-    btfsc KEY,1
-    movwf TMR1Flag ;TzMR1Flag = 1
-    btfsc KEY,2
-    ;movwf flagLED
-    btfsc KEY,3
-    call prepareTX
+    
+    btfsc   KEY,1
+    movwf   TMR1Flag ;TzMR1Flag = 1
+    
+    btfsc   KEY,2
+    incf    flagLED,F 
+    
+    btfsc   KEY,3
+    call    prepareTX
 end_key_exp     
     ;clrf PORTB;Inicializamos puerto para nueva exploración
-    movlw B'00001100'
-    movwf PORTB
-    clrf  botonFlag
+    movlw   B'00001100'
+    movwf   PORTB
+    clrf    botonFlag
     return
 prepareTX
-    ;movlw  0x01
-    ;movwf TXFlag
-    ;bsf   RCSTA,SPEN
-    ;movf  DistanciaL,W
-    ;movwf TXREG
+    movlw  0x01
+    movwf  TXflag
+    bsf    RCSTA,SPEN          ;Habilito RX/DT y TX/CK como pins de Puerto Serie
+    movf   distanciaL,W
+    movwf  TXREG
     return
     
 tableKEY
@@ -374,9 +378,18 @@ table7seg
     retlw 0x07; 7
     retlw 0x7F; 8
     retlw 0x6F; 9 
+    
 rutinaTX
-; asd
- ;goto       FINITE
+    bsf      STATUS,RP0
+    btfss    TXSTA,TRMT  ;Pregunta si ya se envio todo
+    return
+changeTXREG              ;Si se envio, pone la parte alta en TXREG
+    bcf     STATUS,RP0
+    movf    distanciaH,W 
+    movwf   TXREG
+    clrf    TXflag  
+    return               ;tiene que ser return si o si para volver a banco 0
+
 
 calculosDistancia
 L1
