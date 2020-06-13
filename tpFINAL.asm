@@ -33,7 +33,7 @@ LIST P=16F887
  N_COL        equ 2  
  N_ROW        equ 2
  PORTB_AUX    equ 0x2C
-
+ changeDisplay equ 0x2D; 
 INCLUDE <P16F887.INC> 
 
  ;Clock 8MHz
@@ -57,6 +57,7 @@ Inicio
  clrf	    W_TEMP
  clrf	    STATUS_TEMP
  clrf	    estadoRB
+ clrf       changeDisplay
  
  clrf       COLUMN       ; Inicializo contadores de columna y fila
  clrf       ROW
@@ -85,9 +86,16 @@ Inicio
     clrf	TRISC		    ;Se usara <RC0,RC3> como salida 
     clrf	TRISD		    ;Se usara <RD0,RD7> como salida 
  BANKSEL    PORTC
-    clrf	PORTC		    ;Inicializo Puerto C
+    movlw       0x07
+    movwf	PORTC		    ;Inicializo Puerto C
     movlw	0x3F		    ;Puerto D conectado a Displays
     movwf	PORTD		    ;Empezaran prendidos con 0
+    movlw       0x01
+    movwf       varUnidades
+    movlw       0x02
+    movwf       varDecenas
+    movlw       0x08
+    movwf       varCentenas
  ;Configuracion Puerto Serie
  ;BANKSEL    TXSTA		    ;Se config paso a paso para mayor entendimiento
   ;  bcf		TXSTA,TX9D	    ;Solo usaremos 8 bits
@@ -102,18 +110,23 @@ Inicio
   ;  movlw			    ;Hay que elegir valor de BaudRate
    ;movwf	SPBRG		    ;Supongo 4MHz
  ;Configuracion TMR1
- 
+   movlw        0x01  ;VER bit T1CON[0] 
+   movwf        T1CON ;habilitar TMR1E en PIE1
+   movlw        0xA8
+   movwf        TMR1L
+   movlw        0xE4
+   movwf        TMR1H
  ;Configuracion Interrupciones Puerto B
  BANKSEL    IOCB
     movlw	B'00011100'	    ;RB2,RB3 y RB4 tendran interrupcion
     movwf	IOCB		    ;Por flancos
  ;Limpiar Banderas
- BANKSEL    INTCON
-    bcf		INTCON,RBIF	    ;Limpio bandera interrupcion por Puerto B
-    bcf		INTCON,T0IF	    ;Limpio bandera interrupcion por Timer0
- BANKSEL    PIR1
-    bcf		PIR1,TMR1IF	    ;Limpio bandera interrupcion por Timer1
-    bcf		PIR1,TXIF	    ;Limpio bandera interrupcion por TX
+ ;BANKSEL    INTCON
+  ;  bcf		INTCON,RBIF	    ;Limpio bandera interrupcion por Puerto B
+   ; bcf		INTCON,T0IF	    ;Limpio bandera interrupcion por Timer0
+ ;BANKSEL    PIR1
+  ;  bcf		PIR1,TMR1IF	    ;Limpio bandera interrupcion por Timer1
+   ; bcf		PIR1,TXIF	    ;Limpio bandera interrupcion por TX
 
 
  ;Habilitar Interrupciones
@@ -121,9 +134,11 @@ Inicio
     ;bsf		PIE1,TMR1IE	    ;Habilito interrupcion por Timer1
    ; bsf		PIE1,TXIE	    ;Habilito interrupcion por TX
  BANKSEL    INTCON
-    bsf		INTCON,RBIE	    ;Habilito interrupcion por Puerto B
-    bsf		INTCON,PEIE	    ;Habilito interrupcion por Perifericos
-    bsf		INTCON,GIE	    ;Habilito interrupciones
+    movlw       b'11001000' ;GIE PEIE RBIE
+    movwf       INTCON
+    ;bsf		INTCON,RBIE	    ;Habilito interrupcion por Puerto B
+    ;bsf		INTCON,PEIE	    ;Habilito interrupcion por Perifericos
+    ;bsf		INTCON,GIE	    ;Habilito interrupciones
  return
  
 MAIN
@@ -175,6 +190,7 @@ intRB
     goto	rutinaSensor	    ;Antes era 1, entonces fue RB4, voy a rutina sensor
     
  incf	    botonFlag,F		    ;No fue RB4, fue el teclado, entonces resuelvo afuera    
+ movf       PORTB,W                 ;solo para que se pueda bajar la flag RBIF
  bcf	    INTCON,RBIF
  goto       FINITE
  
@@ -268,7 +284,7 @@ fin_dec
     rlf ROW, W        ; ROW*2 + COLUMN
     addwf COLUMN, W
    
-    call  table7seg    ; codificamos a 7 segmento y 
+    call  tableKEY    ; codificamos a 7 segmento y 
     movwf KEY
     movwf PORTD       ; SOLO PARA TESTING
 
@@ -277,7 +293,7 @@ choosePath
     btfsc KEY,0
     ;call empezar a medir distancia
     btfsc KEY,1
-    ;movwf TMR1Flag ;TzMR1Flag = 1
+    movwf TMR1Flag ;TzMR1Flag = 1
     btfsc KEY,2
     ;movwf flagLED
     btfsc KEY,3
@@ -296,7 +312,7 @@ prepareTX
     ;movwf TXREG
     return
     
-table7seg
+tableKEY
     addwf PCL, F
     retlw 0x01; 0 -> 0001
     retlw 0x02; 1 -> 0010
@@ -306,10 +322,58 @@ en_row
     addwf PCL, F
     retlw 0x02
     retlw 0x01
- 
+;------------subrutinas----------------
 subrutinaTMR1
- ;asd
- 
+    clrf   TMR1Flag
+    clrf   botonFlag
+    
+    movlw  0x30
+    addwf  changeDisplay,W
+    movwf  FSR
+    
+    movf   changeDisplay,W
+    call   tableEnable
+    movwf  PORTC
+    
+    movf   INDF,W
+    call   table7seg
+    movwf  PORTD
+    
+    ;TMR1 reseteo de valores
+    bsf     STATUS,RP0
+    bsf     PIE1,TMR1IE
+    bcf     STATUS,RP0
+    movlw        0xA8
+    movwf        TMR1L
+    movlw        0xE4
+    movwf        TMR1H
+    
+    incf   changeDisplay,F
+    movlw  .3              ; cantida displays
+    xorwf  changeDisplay,W
+    btfsc  STATUS,Z
+    clrf   changeDisplay
+    ;*********************
+    ;AÑADIR led titilante
+    return
+    
+tableEnable
+    addwf  PCL,F
+    retlw  0x01
+    retlw  0x02
+    retlw  0x04
+table7seg
+    addwf PCL, F
+    retlw 0x3F; 0
+    retlw 0x06; 1
+    retlw 0x5B; 2
+    retlw 0x4F; 3
+    retlw 0x66; 4
+    retlw 0x6D; 5
+    retlw 0x7D; 6
+    retlw 0x07; 7
+    retlw 0x7F; 8
+    retlw 0x6F; 9 
 rutinaTX
 ; asd
  ;goto       FINITE
