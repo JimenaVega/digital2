@@ -1,4 +1,12 @@
-
+;------------------------------------------------------------------------------
+;ELECTRONICA DIGITAL 2
+;TP final: Medidor de distancia 
+;ALUMNOS:
+;Klincovitzky Sebastian
+;Vega Cuevas Silvia Jimena
+;-------------------------------------------------------------------------------
+    
+    
 LIST P=16F887
 	
  __CONFIG _CONFIG1, _FOSC_HS & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _CP_OFF & _CPD_OFF & _BOREN_ON & _IESO_ON & _FCMEN_ON & _LVP_ON
@@ -143,36 +151,36 @@ Inicio
  movwf	    ENTER3
  
  ;Configuracion Puerto B
- BANKSEL    TRISB
+ BANKSEL        TRISB
     movlw	B'00011100'	    ;RB2,RB3 y RB4 entrada
     movwf	TRISB
- BANKSEL    ANSELH
+ BANKSEL        ANSELH
     clrf	ANSELH		    ;Puerto B entrada digital
- BANKSEL    OPTION_REG
+ BANKSEL        OPTION_REG
     bcf		OPTION_REG,7        ;Habilito pull up resistors
     movlw	B'00001100'
     movwf	WPUB		    ;Habilito pull up resistors de RB2 y RB3
- BANKSEL    PORTB                   ;Inicializo Puerto B  	    
+ BANKSEL        PORTB               ;Inicializo Puerto B  	    
     movlw       B'00001100'
     movwf       PORTB
  ;Configuracion Puerto C y D
- BANKSEL    TRISC
+ BANKSEL        TRISC
     movlw       b'11101000'
     movwf       TRISC
     clrf	TRISD		    ;Se usara <RD0,RD7> como salida 
     clrf        TRISE
- BANKSEL    PORTC
-    clrf	PORTC		    ;Inicializo Puerto C		    ;Puerto D conectado a Displays
+ BANKSEL        PORTC
+    clrf	PORTC		    ;Inicializo Puerto C		    
     clrf	PORTD		    ;Empezaran prendidos con 0
-    movlw      0xFF
-    movwf      PORTE
+    movlw       0xFF
+    movwf       PORTE
   
  ;Configuracion Puerto Serie	    
  BANKSEL	TXSTA
-    bsf	TXSTA,BRGH	;Seteado en Alta veolcidad
+    bsf		TXSTA,BRGH	;Seteado en Alta veolcidad
 	
  BANKSEL	BAUDCTL
-    bcf	BAUDCTL,BRG16	;Si esta en 0; 8 bits de resolucion
+    bcf		BAUDCTL,BRG16	;Si esta en 0; 8 bits de resolucion
 	
  BANKSEL	SPBRG
     movlw	.25
@@ -182,42 +190,40 @@ Inicio
     bcf		TXSTA,SYNC	;Si esta en 0: Modo Asincronico
     bcf		TXSTA,TX9	;Si esta en 0: 8 bits de transmision
     bsf		TXSTA,TXEN	;Si esta en 1: Se habilita la transmision
-	;Configuracion del receptor
+;Configuracion del receptor
 BANKSEL		RCSTA
     bsf		RCSTA,SPEN	;Si esta en 1: Se configuran TX y RX
     bsf		RCSTA,CREN	;Si esta en 1: habilita el receptor
     bcf		RCSTA,RX9	;Si esta en 0: 8 bits de recepcion
  ;Configuracion TMR1
 BANKSEL         T1CON
-   movlw        0x01  ;VER bit T1CON[0] 
-   movwf        T1CON ;habilitar TMR1E en PIE1
-   movlw        0xA8
-   movwf        TMR1L
-   movlw        0xE4
+   movlw        0x01  
+   movwf        T1CON           ;habilitar TMR1E en PIE1
+   movlw        0xA8            ;se guarda valor inicial  
+   movwf        TMR1L           ;para que se multiplexen
+   movlw        0xE4            ;displays a 7ms
    movwf        TMR1H
  ;Configuracion Interrupciones Puerto B
- BANKSEL    IOCB
-    movlw	B'00011100'	    ;RB2,RB3 y RB4 tendran interrupcion
-    movwf	IOCB		    ;Por flancos
+ BANKSEL        IOCB
+    movlw	B'00011100'     ;RB2,RB3 y RB4 tendran interrupcion
+    movwf	IOCB	        ;Por flancos
 
  ;Habilitar Interrupciones
- BANKSEL    PIE1
-    bsf		PIE1,TMR1IE	    ;Habilito interrupcion por Timer1
-    bsf		PIE1,RCIE	    ;Habilito interrupcion por RC
- BANKSEL    INTCON
+ BANKSEL        PIE1
+    bsf		PIE1,TMR1IE     ;Habilito interrupcion por Timer1
+    bsf		PIE1,RCIE	;Habilito interrupcion por RC
+ BANKSEL        INTCON
     movlw       b'11001000' ;GIE PEIE RBIE
     movwf       INTCON
  return
  
 MAIN
- bcf        STATUS,RP0;***********
+ bcf        STATUS,RP0
  btfsc	    TMR1Flag,0		    ;Pregunto si hubo interrupcion por TMR1
    
     call	subrutinaTMR1	    ;Si la respuesta es si, voy a la subrutina de TMR1
  btfsc	    botonFlag,0		    ;Pregunto si hubo interrupcion por RB0 o RB1
-    call	TECLADO		    ;Si la respuesta es si, voy a la subrutina para resolver teclado
-; btfsc      TXflag,0
-;    call	rutinaTX    
+    call	TECLADO		    ;Si la respuesta es si, voy a la subrutina para resolver teclado   
  goto	    MAIN		    ;Vuelvo al inicio
 
 
@@ -271,7 +277,6 @@ intRB
  
 
 rutinaSensor 
-
  btfss	    PORTB,RB4		    ;Pregunto si RB4=1
     goto	termino		    ;No, entonces termino medicion y salto 9 instrucciones
     
@@ -301,7 +306,6 @@ rutinaSensor
  goto       FINITE
   
 
- 
 RESETT0
  nop
  movlw	    D'237'		    ;Para 59us
@@ -313,47 +317,47 @@ RESETT0
  bcf	    INTCON,T0IF		    ;Bajo bandera de interrupcion por TMR0
  goto       FINITE
  
-TECLADO 
+TECLADO                             ;Rutina de identificacion de tecla
  
-    movf    PORTB_AUX, W       ; Guardo valor de columna habilitada
-    movwf   COL_EN
-    rrf     COL_EN,F
-    rrf     COL_EN,W
-    andlw   0x03
-    movwf   COL_EN
-    movwf   COL_EN_T
+    movf    PORTB_AUX, W            
+    movwf   COL_EN                  ;Se copia en dos registros distintos
+    rrf     COL_EN,F                ;el valor del puerto B
+    rrf     COL_EN,W                ;Se traslada dos veces a la derecha
+    andlw   0x03                    ;Se borra el resto que no sean los dos...
+    movwf   COL_EN                  ;primeros bits
+    movwf   COL_EN_T                ;Registro copia de COL_EN
     
-    movlw   0x03         
-    subwf   COL_EN, W      
-    btfsc   STATUS, Z      
-    goto    end_key_exp
-    clrf    COLUMN         
-    clrf    ROW
-col_dec    
-    rrf     COL_EN_T,F 
-    btfss   STATUS,C    
-    goto    row_dec     
+    movlw   0x03                    ;Se compara si RB2 O RB3 cambiaron de valor
+    subwf   COL_EN, W     
+    btfsc   STATUS, Z               ;En caso negativo
+    goto    end_key_exp             ;se termina la exploracion
+    clrf    COLUMN                  ;En caso afirmativo comienza a explorar
+    clrf    ROW                    
+col_dec                             ;Se busca la columna
+    rrf     COL_EN_T,F                
+    btfss   STATUS,C                ;Si se encuentra la columna...
+    goto    row_dec                 ;Se va a explorar la fila
 
-    incf    COLUMN, F  
-    movlw   N_COL
-    subwf   COLUMN, W
-    btfss   STATUS, Z
-    goto    col_dec
+    incf    COLUMN, F               ;En caso negativo aumenta contador columna
+    movlw   N_COL                   
+    subwf   COLUMN, W               ;Se revisa que no se haya pasado de la...
+    btfss   STATUS, Z               ;cantidad de columnas (2)
+    goto    col_dec                 ;En caso negativo fue un falso disparo
     clrf    COLUMN
     goto    end_key_exp
-row_dec
-    movf    ROW,W      
-    call    en_row      
-    movwf   PORTB      
+row_dec                           
+    movf    ROW,W                  ;Se busca la fila presionada   
+    call    en_row                 ;Poniendo en puerto B el bit a buscar en 0
+    movwf   PORTB                  
 
-    movf    PORTB, W  
-    movwf   REG_AUX
-    rrf     REG_AUX,F
+    movf    PORTB, W               ;Luego se compara el valor que se ve..
+    movwf   REG_AUX                ;en el puertoB
+    rrf     REG_AUX,F     
     rrf     REG_AUX,W
     andlw   0x03
-    subwf   COL_EN, W   
+    subwf   COL_EN, W              ;Con el valor que se habia guardado al comienzo
     btfsc   STATUS, Z   
-    goto    fin_dec
+    goto    fin_dec                ;Si no se iguala fue un falso disparo
     incf    ROW, F     
 
     movlw   N_ROW     
@@ -365,42 +369,33 @@ row_dec
     clrf    ROW
     goto    end_key_exp
 fin_dec
-    bcf     STATUS, C     ; con los valores de columna y fila
-    rlf     ROW, W        ; ROW*2 + COLUMN
+    bcf     STATUS, C              ; con los valores de columna y fila
+    rlf     ROW, W                 ; ROW*2 + COLUMN
     addwf   COLUMN, W
    
-    call    tableKEY    ; codificamos a 7 segmento y 
-    movwf   KEY
-    ;movwf   PORTD       ; SOLO PARA TESTING
+    call    tableKEY               ;Luego se guarda el numero correspondiendte 
+    movwf   KEY                    ; a la tecla presionada en key
 
-choosePath
+choosePath                         ;choosePath es un "multiplexor"
     movlw   0x01
-    btfsc   KEY,0
-    call    Trigger
+    btfsc   KEY,0                  ;Si se toco la 1er tecla
+    call    Trigger                ;comienza la medicion
     
-    btfsc   KEY,1
-    call    actualizarDisplay
+    btfsc   KEY,1                  ;2da la tecla
+    call    actualizarDisplay      ;Se muestra el valor medido 
    
-    btfsc   KEY,2
-    call    prepareLED
+    btfsc   KEY,2                  ;3era tecla
+    call    prepareLED             ;funcionalidad de led titilante ante Distancia<10d
     
-    btfsc   KEY,3
-    call    rutinaTX
+    btfsc   KEY,3                  ;4ta tecla
+    call    rutinaTX               ;envia por el puerto serie el valor medido  
     
-end_key_exp     
+end_key_exp                        ;Termina exploracion de teclas
     movlw   B'00001100'
     movwf   PORTB
     clrf    botonFlag
     clrf    KEY  
     return
-    
-;prepareTX
-;    movlw  0x01
-;    movwf  TXflag
-;    bsf    RCSTA,SPEN          ;Habilito RX/DT y TX/CK como pins de Puerto Serie
-;    movf   distanciaL,W
-;    movwf  TXREG
-;    return
     
 prepareLED
     movlw 0x01
@@ -420,11 +415,9 @@ rutinaRC
     sublw 'D'
     btfsc STATUS,Z
     call  rutinaTX
-   ; bcf	  PIR1,RCIF
     goto  FINITE
-    
-    
-;------------subrutinas----------------
+      
+;-----------------------------subrutinas------------------------------------
 actualizarDisplay
     movf   varUnidades,W
     movwf  display0
@@ -457,7 +450,6 @@ subrutinaTMR1
     movwf  PORTD
     
     ;TMR1 reseteo de valores
-    
     movlw        0xA8
     movwf        TMR1L
     movlw        0xE4
@@ -468,8 +460,6 @@ subrutinaTMR1
     xorwf  changeDisplay,W
     btfsc  STATUS,Z
     clrf   changeDisplay
-    ;*********************
-    ;AÑADIR led titilante
     btfss  flagLED,0
     return
     btfsc  varCentenas,0
@@ -490,8 +480,6 @@ subrutinaTMR1
     movwf  countLED
     
     return
-    
-
 
 rutinaTX
     movlw   0x2D
@@ -508,18 +496,6 @@ transmitiendoTX
 	goto	transmitiendoTX
     return
     
-    
-    
-;    bsf      STATUS,RP0
-;    btfss    TXSTA,TRMT  ;Pregunta si ya se envio todo
-;    return
-;changeTXREG              ;Si se envio, pone la parte alta en TXREG
-;    bcf     STATUS,RP0
-;    movf    distanciaH,W 
-;    movwf   TXREG
-;    clrf    TXflag  
-;    return               ;tiene que ser return si o si para volver a banco 0
-    
 Trigger
     clrf   distanciaH
     clrf   distanciaL
@@ -533,10 +509,8 @@ Trigger
 loop 
     decfsz countTrig,F
     goto   loop    
-bcf  PORTB,RB5
-return
-
-
+    bcf  PORTB,RB5
+    return
 
 calculosDistancia
 L1
@@ -604,8 +578,7 @@ L4
     goto	L1
  incf	    varCentenas,F
  clrf	    varDecenas
- goto	    L1
-   
+ goto	    L1  
  
 ASCII
  movfw	    varUnidades
