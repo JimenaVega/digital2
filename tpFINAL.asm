@@ -71,9 +71,10 @@ ORG 0x00
  goto MAIN
  
 ORG 0x04
- goto INTSERV			    ;Servicio de interrupcion
+ goto INTSERV			
    
 ORG 0x05
+;---------------------------------TABLAS------------------------------------------
  tableKEY
     addwf PCL, F
     retlw 0x01; 0 -> 0001
@@ -101,7 +102,7 @@ table7seg
     retlw 0x07; 7
     retlw 0x7F; 8
     retlw 0x6F; 9 
-    
+;-----------------------------CONFIGURACION INICIAL-----------------------------   
 Inicio
  ;Configuracion inicial de registros auxiliares
  clrf	    TMR1Flag
@@ -157,7 +158,7 @@ Inicio
  BANKSEL        ANSELH
     clrf	ANSELH		    ;Puerto B entrada digital
  BANKSEL        OPTION_REG
-    bcf		OPTION_REG,7        ;Habilito pull up resistors
+    bcf		OPTION_REG,7        ;Habilito pull up resistors 
     movlw	B'00001100'
     movwf	WPUB		    ;Habilito pull up resistors de RB2 y RB3
  BANKSEL        PORTB               ;Inicializo Puerto B  	    
@@ -168,12 +169,9 @@ Inicio
     movlw       b'11101000'
     movwf       TRISC
     clrf	TRISD		    ;Se usara <RD0,RD7> como salida 
-    clrf        TRISE
  BANKSEL        PORTC
     clrf	PORTC		    ;Inicializo Puerto C		    
     clrf	PORTD		    ;Empezaran prendidos con 0
-    movlw       0xFF
-    movwf       PORTE
   
  ;Configuracion Puerto Serie	    
  BANKSEL	TXSTA
@@ -187,9 +185,10 @@ Inicio
     movwf	SPBRG		;Queda configurado a 9600 baudios (4MHz)
 	
  BANKSEL	TXSTA
-    bcf		TXSTA,SYNC	;Si esta en 0: Modo Asincronico
-    bcf		TXSTA,TX9	;Si esta en 0: 8 bits de transmision
-    bsf		TXSTA,TXEN	;Si esta en 1: Se habilita la transmision
+    bcf		TXSTA,SYNC	;Modo Asincronico
+    bcf		TXSTA,TX9	;Esta en 0: 8 bits de transmision
+    bsf		TXSTA,TXEN	;Se habilita la transmision
+    
 ;Configuracion del receptor
 BANKSEL		RCSTA
     bsf		RCSTA,SPEN	;Si esta en 1: Se configuran TX y RX
@@ -198,11 +197,12 @@ BANKSEL		RCSTA
  ;Configuracion TMR1
 BANKSEL         T1CON
    movlw        0x01  
-   movwf        T1CON           ;habilitar TMR1E en PIE1
+   movwf        T1CON           ;Se habilita TMR1ON
    movlw        0xA8            ;se guarda valor inicial  
    movwf        TMR1L           ;para que se multiplexen
    movlw        0xE4            ;displays a 7ms
    movwf        TMR1H
+   
  ;Configuracion Interrupciones Puerto B
  BANKSEL        IOCB
     movlw	B'00011100'     ;RB2,RB3 y RB4 tendran interrupcion
@@ -211,12 +211,12 @@ BANKSEL         T1CON
  ;Habilitar Interrupciones
  BANKSEL        PIE1
     bsf		PIE1,TMR1IE     ;Habilito interrupcion por Timer1
-    bsf		PIE1,RCIE	;Habilito interrupcion por RC
+    bsf		PIE1,RCIE	;Habilito interrupcion por RX
  BANKSEL        INTCON
-    movlw       b'11001000' ;GIE PEIE RBIE
+    movlw       b'11001000'     ;GIE PEIE RBIE
     movwf       INTCON
  return
- 
+;----------------------------PROGRAMA PRINCIPAL--------------------------------- 
 MAIN
  bcf        STATUS,RP0
  btfsc	    TMR1Flag,0		    ;Pregunto si hubo interrupcion por TMR1
@@ -270,7 +270,7 @@ intRB
     goto	rutinaSensor	    ;Antes era 1, entonces fue RB4, voy a rutina sensor
  
  movlw      0x01
- movwf	    botonFlag	    ;No fue RB4, fue el teclado, entonces resuelvo afuera    
+ movwf	    botonFlag	            ;No fue RB4, fue el teclado, entonces resuelvo afuera    
  movf       PORTB,W                 ;solo para que se pueda bajar la flag RBIF
  bcf	    INTCON,RBIF
  goto       FINITE
@@ -305,7 +305,6 @@ rutinaSensor
  bcf	    INTCON,RBIF		    ;Bajo bandera de interrupcion en Puerto B
  goto       FINITE
   
-
 RESETT0
  nop
  movlw	    D'237'		    ;Para 59us
@@ -397,119 +396,118 @@ end_key_exp                        ;Termina exploracion de teclas
     clrf    KEY  
     return
     
-prepareLED
-    movlw 0x01
+prepareLED                        ;Se encarga de cambiar el estado del led
+    movlw 0x01                    ;conectado a RC4
     xorwf flagLED,F
     btfss flagLED,0
     bcf   PORTC,4
     return
 
-rutinaRC
-    bcf	  PIR1,RCIF
-    movfw RCREG
+rutinaRC                          ;Subrutina de RX
+    bcf	  PIR1,RCIF               
+    movfw RCREG                   ;Se guardan los valores guardados en el registro RX
     movwf varRX
-    sublw 'M'
+    sublw 'M'                     ;Se pregutna si fue el comando 'M':medir
     btfsc STATUS,Z
-    call  Trigger
+    call  Trigger                 ;En caso afirmativo: manda señal trigger para medir
     movf  varRX,W
-    sublw 'D'
-    btfsc STATUS,Z
+    sublw 'D'                     ;Compara si el comando fue 'D': distancia
+    btfsc STATUS,Z                ;En caso afirmativo, transmite el valor por TX serie
     call  rutinaTX
     goto  FINITE
       
-;-----------------------------subrutinas------------------------------------
+;---------------------------------subrutinas------------------------------------
 actualizarDisplay
-    movf   varUnidades,W
-    movwf  display0
+    movf   varUnidades,W          ;Se guardan los valores medidos en registros
+    movwf  display0               ;auxiliares para luego poder ser mostrados
     
-    movf   varDecenas,W
+    movf   varDecenas,W           ;utilizando el boton 2
     movwf  display1
     
     movf   varCentenas,W
     movwf  display2
  return
  
- 
-subrutinaTMR1
-    clrf   TMR1Flag
+subrutinaTMR1                 
+    clrf   TMR1Flag               ;Se borran banderas ficticias relacionadas al TMR1
     clrf   botonFlag
     bcf    PIR1,TMR1IF
     
-    movlw  display0
-    addwf  changeDisplay,W
-    movwf  FSR
+    movlw  display0               ;Se mueve la direccion de las unidades medidas
+    addwf  changeDisplay,W        ;Se le suma a un contador
+    movwf  FSR                    ;Se cambia la direccion dnde apunta el FSR
     
-    movf   changeDisplay,W
+    movf   changeDisplay,W        ;Se utiliza el mismo contador para habilitar display i
     call   tableEnable
     movwf  PORTC
     btfsc  valorLED,4
 	bsf	PORTC,4
     
-    movf   INDF,W
-    call   table7seg
+    movf   INDF,W                 ;Se muestra en displays los valores en formato
+    call   table7seg              ; C -D -U (a medida que se multiplexa)
     movwf  PORTD
     
-    ;TMR1 reseteo de valores
-    movlw        0xA8
+    movlw        0xA8             ;TMR1 reseteo de valores
     movwf        TMR1L
     movlw        0xE4
     movwf        TMR1H
     
-    incf   changeDisplay,F
-    movlw  .3              ; cantida displays
+    incf   changeDisplay,F        ;incremento de contador
+    movlw  .3                     ; cantida displays
     xorwf  changeDisplay,W
     btfsc  STATUS,Z
     clrf   changeDisplay
-    btfss  flagLED,0
+    
+    btfss  flagLED,0              ;Se controla si la distancia medida...
     return
-    btfsc  varCentenas,0
+    btfsc  varCentenas,0          ;es menor a 10
     return
-    btfsc  varDecenas,0
+    btfsc  varDecenas,0           ;y si esta habilitado el led titilante
     return
     
     decfsz countLED,F
     return
     
-    movlw  0x10
-    xorwf  valorLED,F
+    movlw  0x10                   ;En caso afirmativo, cada 0.5s se prende
+    xorwf  valorLED,F             ;y se apaga el led en RC4
     movf   valorLED,W
     bcf    PORTC,4
     iorwf  PORTC,F
     
-    movlw  .71
+    movlw  .71                    ;Se recarga el contador de tiempo entre cambios del led
     movwf  countLED
     
     return
 
 rutinaTX
-    movlw   0x2D
-    movwf   FSR
+    movlw   0x2D                 ;Se cambia la direccion donde apunta el FSR
+    movwf   FSR                  
 transmitiendoTX
-    movfw   INDF
-    movwf   TXREG
+    movfw   INDF                 ;Comienza transmision de valores guardados a partir
+    movwf   TXREG                ;de la direccion 0x2D
     btfss   PIR1,TXIF
 	goto	$-1
-    incf    FSR
-    movlw   0x39
+    incf    FSR                  ;incrementa FSR y se compara que no se haya pasado
+    movlw   0x39                 ;de 0x39
     subwf   FSR,W
     btfss   STATUS,Z
 	goto	transmitiendoTX
     return
     
 Trigger
-    clrf   distanciaH
+    clrf   distanciaH           ;Se borran registros con distancias guardadas
     clrf   distanciaL
     clrf   varUnidades
     clrf   varDecenas
     clrf   varCentenas
     
-    bsf   PORTB,RB5
+    bsf   PORTB,RB5             ;Se manda la señal Trigger por RB5
     movlw .4
     movwf countTrig
-loop 
+loop                            ;Durante 12us
     decfsz countTrig,F
     goto   loop    
-    bcf  PORTB,RB5
+    bcf  PORTB,RB5              ;Se apaga la señal trigger
     return
 
 calculosDistancia
